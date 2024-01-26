@@ -31,7 +31,7 @@ func (s *ForwardService) Serve() error {
 			return err
 		}
 	case "tcp":
-		err := s.tcpForwardService.doTcpForward(s.CliArgs.SourceHostPort, s.CliArgs.DestHostPort)
+		err := s.tcpForwardService.DoTcpForward(s.CliArgs.SourceHostPort, s.CliArgs.DestHostPort)
 		if err != nil {
 			log.Errorf("do tcp forward failed ,error is %v", err)
 			return err

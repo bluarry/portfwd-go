@@ -18,7 +18,7 @@ func NewTcpForWard() *TcpForward {
 	return &TcpForward{}
 }
 
-func (_self *TcpForward) doTcpForward(srcAddr string, destAddr string) (err error) {
+func (_self *TcpForward) DoTcpForward(srcAddr string, destAddr string) (err error) {
 	_self.PortListener, err = net.Listen("tcp", srcAddr)
 	if err != nil {
 		return err
