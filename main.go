@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"git.bluarry.top/bluarry/port-forward-cli/model"
 	"git.bluarry.top/bluarry/port-forward-cli/service"
 	log "github.com/sirupsen/logrus"
@@ -16,7 +15,6 @@ cli 端口转发工具，用法如下:
 fwd -t tcp|udp 0.0.0.0:80 192.168.1.1:80
 */
 func main() {
-	log.SetOutput(os.Stdout)
 	log.SetLevel(log.DebugLevel)
 	app := cli.App{
 		Name:   "fwd",
@@ -34,10 +32,17 @@ func main() {
 				Aliases: []string{"d"},
 				Value:   false,
 			},
+			&cli.StringFlag{
+				Name:     "log",
+				Aliases:  []string{"l"},
+				Value:    "./run.log",
+				Required: false,
+			},
 		},
 		Action: func(ctx *cli.Context) error {
 			prot := ctx.String("type")
 			daemon := ctx.Bool("daemon")
+			logPath := ctx.String("log")
 			if len(ctx.Args().Slice()) != 2 {
 				return errors.New("params is error")
 			}
@@ -57,8 +62,10 @@ func main() {
 				}
 				return nil
 			}
+			logfile, _ := os.OpenFile(logPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0777)
+			log.SetOutput(logfile)
 			if daemon {
-				RunInDaemon(f, "./run.log")
+				RunInDaemon(f)
 			} else {
 				return f()
 			}
@@ -69,14 +76,13 @@ func main() {
 		log.Fatal(err)
 	}
 }
-func RunInDaemon(f func() error, logPath string) {
+func RunInDaemon(f func() error) {
 	if os.Getppid() == 1 {
-		pidfile, _ := os.OpenFile("./pid", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0777)
-		_, _ = pidfile.WriteString(fmt.Sprintf("%v", os.Getpid()))
-		_ = pidfile.Close()
-		log.Println("守护进程：", os.Getpid())
 		err := f()
-		log.Errorln("error to run tcp forward", err)
+		if err != nil {
+			log.Errorln("error to run tcp forward", err)
+		}
+
 	} else {
 		args := make([]string, 0)
 		for _, arg := range os.Args[1:] {
@@ -85,10 +91,6 @@ func RunInDaemon(f func() error, logPath string) {
 			}
 		}
 		cmd := exec.Command(os.Args[0], args...)
-		logfile, _ := os.OpenFile(logPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0777)
-		cmd.Stdout = logfile
-		cmd.Stderr = logfile
 		cmd.Start()
-
 	}
 }
