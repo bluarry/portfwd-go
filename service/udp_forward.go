@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	log "github.com/sirupsen/logrus"
 	"net"
 	"sync"
@@ -84,6 +85,10 @@ func (_self *UdpForward) runForward() {
 		buf := make([]byte, bufferSize)
 		n, addr, err := _self.UdpListenerConn.ReadFromUDP(buf)
 		if err != nil {
+			if errors.Is(err, net.ErrClosed) {
+				_self.UdpListenerConn, _ = net.ListenUDP("udp", _self.SrcAddr)
+				continue
+			}
 			log.Errorf("error to ReadFrom UDP, %v", err)
 			return
 		}

@@ -11,12 +11,14 @@ import (
 type ForwardService struct {
 	CliArgs           *model.FwdArgs
 	udpForwardService *UdpForward
+	tcpForwardService *TcpForward
 }
 
 func NewForwardJob(args *model.FwdArgs) *ForwardService {
 	return &ForwardService{
 		CliArgs:           args,
 		udpForwardService: NewUdpForward(),
+		tcpForwardService: NewTcpForWard(),
 	}
 }
 
@@ -29,6 +31,11 @@ func (s *ForwardService) Serve() error {
 			return err
 		}
 	case "tcp":
+		err := s.tcpForwardService.doTcpForward(s.CliArgs.SourceHostPort, s.CliArgs.DestHostPort)
+		if err != nil {
+			log.Errorf("do tcp forward failed ,error is %v", err)
+			return err
+		}
 	default:
 	}
 	// 等待退出信号

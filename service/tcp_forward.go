@@ -1,80 +1,60 @@
 package service
 
 import (
+	"fmt"
+	log "github.com/sirupsen/logrus"
+	"io"
 	"net"
+	"time"
 )
 
 type TcpForward struct {
 	PortListener net.Listener
+	SrcConn      net.Conn
+	DestConn     net.Conn
 }
 
 func NewTcpForWard() *TcpForward {
 	return &TcpForward{}
 }
 
-//func (_self *TcpForward) doTcpForward(srcAddr string, destAddr string) (err error) {
-//	_self.PortListener, err = net.Listen("tcp", srcAddr)
-//	if err != nil {
-//		return err
-//	}
-//
-//	for {
-//		realClientConn, err := _self.PortListener.Accept()
-//		if err != nil {
-//			logs.Error("Forward Accept err:", err.Error())
-//			logs.Error(fmt.Sprint("转发出现异常：", _self.Config.SrcAddr, ":", _self.Config.SrcPort, "->", destAddr))
-//			_self.StopJob()
-//			break
-//		}
-//
-//		if ForWardDebug == true {
-//			logs.Info("新用户 ", realClientConn.RemoteAddr().String(), " 数据转发规则：", fmt.Sprint(_self.Config.SrcAddr, ":", _self.Config.SrcPort), "->", destAddr)
-//		}
-//
-//		var destConn net.Conn
-//		if _self.Config.Protocol == "UDP" {
-//			//destConn, err = Common.DialKcpTimeout(destAddr, 100)
-//			destConn, err = net.DialTimeout("UDP", destAddr, 30*time.Second)
-//		} else {
-//			destConn, err = net.DialTimeout("tcp", destAddr, 30*time.Second)
-//		}
-//
-//		if err != nil {
-//			if ForWardDebug == true {
-//				logs.Warn("转发出现异常 Forward to Dest Addr err:", err.Error())
-//			}
-//
-//			//break
-//			continue
-//
-//		}
-//
-//		forwardClient := &ForWardClient{realClientConn, destConn, nil, _self.ClosedCallBack}
-//
-//		if Utils.IsNotEmpty(_self.Config.Others) {
-//			var dispatchConns []io.Writer
-//			//分发方式
-//			dispatchTargets := Utils.Split(_self.Config.Others, ";")
-//
-//			for _, dispatchTarget := range dispatchTargets {
-//				logs.Debug("分发到：", dispatchTarget)
-//				dispatchTargetConn, err := net.DialTimeout("tcp", dispatchTarget, 30*time.Second)
-//				if err == nil {
-//					dispatchConns = append(dispatchConns, dispatchTargetConn)
-//				}
-//
-//			}
-//
-//			forwardClient.DispatchConns = dispatchConns
-//
-//			go forwardClient.DispatchData(dispatchConns)
-//		} else {
-//			go forwardClient.StartForward()
-//		}
-//
-//		_self.RegistryClient(_self.GetClientId(realClientConn), forwardClient)
-//		//_self.RegistryClient(fmt.Sprint(sourceAddr, "_", "TCP", "_", id), forwardClient)
-//
-//	}
-//	return nil
-//}
+func (_self *TcpForward) doTcpForward(srcAddr string, destAddr string) (err error) {
+	_self.PortListener, err = net.Listen("tcp", srcAddr)
+	if err != nil {
+		return err
+	}
+	_self.SrcConn, err = _self.PortListener.Accept()
+	if err != nil {
+		log.Error("Forward Accept err:", err)
+		log.Error(fmt.Sprint("转发出现异常：", srcAddr, "->", destAddr))
+		return err
+	}
+
+	_self.DestConn, err = net.DialTimeout("tcp", destAddr, 30*time.Second)
+	if err != nil {
+		log.Debug("转发出现异常 Forward to Dest Addr err:", err.Error())
+		return err
+	}
+
+	for {
+		go func() {
+			_, err := io.Copy(_self.DestConn, _self.SrcConn)
+			if err != nil {
+				log.Error("客户端来源数据转发到目标端口异常：", err)
+			}
+		}()
+		go func() {
+			_, err := io.Copy(_self.SrcConn, _self.DestConn)
+			if err != nil {
+				log.Error("目标端口返回响应数据异常：", err)
+			}
+		}()
+
+	}
+	return nil
+}
+func (_self *TcpForward) Stop() {
+	log.Debug("关闭一个连接：", _self.SrcConn.RemoteAddr(), " on ", _self.SrcConn.LocalAddr())
+	_self.SrcConn.Close()
+	_self.DestConn.Close()
+}
