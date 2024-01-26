@@ -14,7 +14,7 @@ type ForwardService struct {
 	tcpForwardService *TcpForward
 }
 
-func NewForwardJob(args *model.FwdArgs) *ForwardService {
+func NewForwardService(args *model.FwdArgs) *ForwardService {
 	return &ForwardService{
 		CliArgs:           args,
 		udpForwardService: NewUdpForward(),
@@ -47,7 +47,7 @@ func (s *ForwardService) WaitExit() {
 	// 等待退出信号
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGTERM, syscall.SIGQUIT, syscall.SIGKILL)
-	log.Println("udp listener started success")
+	log.Println("listener started success")
 	<-quit
 	s.udpForwardService.Close()
 	log.Println("udp listener will exit")

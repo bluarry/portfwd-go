@@ -2,11 +2,13 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"git.bluarry.top/bluarry/port-forward-cli/model"
 	"git.bluarry.top/bluarry/port-forward-cli/service"
 	log "github.com/sirupsen/logrus"
 	"github.com/urfave/cli/v2"
 	"os"
+	"os/exec"
 )
 
 /*
@@ -27,11 +29,17 @@ func main() {
 				Usage:    "tcp|udp",
 				Required: true,
 			},
+			&cli.BoolFlag{
+				Name:    "daemon",
+				Aliases: []string{"d"},
+				Value:   false,
+			},
 		},
 		Action: func(ctx *cli.Context) error {
 			prot := ctx.String("type")
+			daemon := ctx.Bool("daemon")
 			if len(ctx.Args().Slice()) != 2 {
-				return errors.New("params num is error")
+				return errors.New("params is error")
 			}
 
 			sourceHosePort := ctx.Args().Get(0)
@@ -41,15 +49,46 @@ func main() {
 				SourceHostPort: sourceHosePort,
 				DestHostPort:   destHostPort,
 			}
-			svc := service.NewForwardJob(cliArgs)
-			if err := svc.Serve(); err != nil {
-				log.Printf("service run failed,error is %v", err)
-				return err
+			svc := service.NewForwardService(cliArgs)
+			f := func() error {
+				if err := svc.Serve(); err != nil {
+					log.Printf("service run failed,error is %v", err)
+					return err
+				}
+				return nil
+			}
+			if daemon {
+				RunInDaemon(f, "./run.log")
+			} else {
+				return f()
 			}
 			return nil
 		},
 	}
 	if err := app.Run(os.Args); err != nil {
 		log.Fatal(err)
+	}
+}
+func RunInDaemon(f func() error, logPath string) {
+	if os.Getppid() == 1 {
+		pidfile, _ := os.OpenFile("./pid", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0777)
+		_, _ = pidfile.WriteString(fmt.Sprintf("%v", os.Getpid()))
+		_ = pidfile.Close()
+		log.Println("守护进程：", os.Getpid())
+		err := f()
+		log.Errorln("error to run tcp forward", err)
+	} else {
+		args := make([]string, 0)
+		for _, arg := range os.Args[1:] {
+			if arg != "-d" && arg != "--daemon" {
+				args = append(args, arg)
+			}
+		}
+		cmd := exec.Command(os.Args[0], args...)
+		logfile, _ := os.OpenFile(logPath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0777)
+		cmd.Stdout = logfile
+		cmd.Stderr = logfile
+		cmd.Start()
+
 	}
 }
