@@ -17,7 +17,7 @@ fwd -t tcp|udp 0.0.0.0:80 192.168.1.1:80
 func main() {
 	log.SetLevel(log.DebugLevel)
 	app := cli.App{
-		Name:   "fwd",
+		Name:   "portfwd",
 		Usage:  "port forward cli tool",
 		Writer: os.Stdout,
 		Flags: []cli.Flag{
